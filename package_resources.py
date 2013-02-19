@@ -80,7 +80,7 @@ def get_package_asset(package_name, asset_name, get_path=False, recursive_search
 
     return None
 
-def list_package_files(package):
+def list_package_files(package, ignored_directories=[]):
     package_path = os.path.join(sublime.packages_path(), package) + os.sep
     sublime_package = package + ".sublime-package"
     path = None
@@ -88,6 +88,10 @@ def list_package_files(package):
     file_list = []
     if os.path.exists(package_path):
         for root, directories, filenames in os.walk(package_path):
+            for directory in directories:
+                if directory in ignored_directories:
+                    directories.remove(directory)
+
             temp = root.replace(package_path, "")
             for filename in filenames:
                 file_list.append(os.path.join(temp, filename))
@@ -106,7 +110,22 @@ def list_package_files(package):
        file_set.update(_list_files_in_zip(packages_path, sublime_package))
 
     file_list = []
+    ignored_regex_list = []
+    for ignored_directory in ignored_directories:
+        temp = "%s[/\\\]" % ignored_directory
+        ignored_regex_list.append(re.compile(temp))
+
+    is_ignored = False
     for filename in file_set:
+        is_ignored = False
+        for ignored_regex in ignored_regex_list:
+            if ignored_regex.search(filename):
+                is_ignored = True
+                break
+
+        if is_ignored:
+            continue
+
         if os.sep == "/":
             replace_sep = "\\"
         else:
@@ -290,6 +309,38 @@ class GetPackageAssetTests(unittest.TestCase):
 
         aseq(tc("Default"), sorted(default_files))
 
+        default_files = ['Add Line Before.sublime-macro',
+        'Add Line in Braces.sublime-macro', 'Add Line.sublime-macro',
+        'Context.sublime-menu', 'Default (Linux).sublime-keymap',
+        'Default (Linux).sublime-mousemap', 'Default (OSX).sublime-keymap',
+        'Default (OSX).sublime-mousemap', 'Default (Windows).sublime-keymap',
+        'Default (Windows).sublime-mousemap', 'Default.sublime-commands',
+        'Delete Left Right.sublime-macro', 'Delete Line.sublime-macro',
+        'Delete to BOL.sublime-macro', 'Delete to EOL.sublime-macro',
+        'Delete to Hard BOL.sublime-macro', 'Delete to Hard EOL.sublime-macro',
+        'Distraction Free.sublime-settings', 'Find Results.hidden-tmLanguage',
+        'Find in Files.sublime-menu', 'Icon.png',
+        'Indentation Rules - Comments.tmPreferences',
+        'Indentation Rules.tmPreferences', 'Indentation.sublime-menu',
+        'Indexed Symbol List.tmPreferences', 'Main.sublime-menu',
+        'Minimap.sublime-settings', 'Preferences (Linux).sublime-settings',
+        'Preferences (OSX).sublime-settings', 'Preferences (Windows).sublime-settings',
+        'Preferences.sublime-settings', 'Regex Format Widget.sublime-settings',
+        'Regex Widget.sublime-settings', 'Side Bar Mount Point.sublime-menu',
+        'Side Bar.sublime-menu', 'Symbol List.tmPreferences', 'Syntax.sublime-menu',
+        'Tab Context.sublime-menu', 'Widget Context.sublime-menu',
+        'Widget.sublime-settings', 'block.py', 'comment.py', 'copy_path.py',
+        'delete_word.py', 'detect_indentation.py', 'duplicate_line.py',
+        'echo.py', 'exec.py', 'fold.py', 'font.py', 'goto_line.py',
+        'indentation.py', 'kill_ring.py', 'mark.py', 'new_templates.py',
+        'open_file_settings.py', 'open_in_browser.py', 'pane.py', 'paragraph.py',
+        'save_on_focus_lost.py', 'scroll.py',
+        'set_unsaved_view_name.py', 'side_bar.py', 'sort.py', 'swap_line.py',
+        'switch_file.py', 'symbol.py', 'transform.py', 'transpose.py',
+        'trim_trailing_white_space.py']
+
+        aseq(tc("Default", ["send2trash"]), sorted(default_files))
+
     def test_get_packages_list(self):
         packages_list = ['ASP', 'ActionScript', 'AdvancedNewFile', 'AppleScript',
         'Batch File', 'C#', 'C++', 'CSS', 'Clojure', 'Color Scheme - Default',
@@ -299,13 +350,11 @@ class GetPackageAssetTests(unittest.TestCase):
         'OCaml', 'Objective-C', 'PHP', 'PackageResources', 'Perl', 'Python', 'R',
         'Rails', 'Regular Expressions', 'RestructuredText', 'Ruby', 'SQL', 'Scala',
         'ShellScript', 'TCL', 'Text', 'Textile', 'Theme - Default', 'User', 'XML',
-        'YAML']
+        'YAML', 'PackageHelper']
 
         tc = get_packages_list
         aseq = self.assertEquals
         aseq(tc(), sorted(packages_list))
-        print(list_package_files("Default"))
-        #print(list_package_files("User"))
 
     def test_get_package_asset(self):
         tc = get_package_asset
