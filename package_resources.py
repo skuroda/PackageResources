@@ -9,7 +9,7 @@ import tempfile
 import re
 import codecs
 
-def get_package_asset(package_name, asset_name, get_path=False, recursive_search=False, return_binary=False, encoding="utf-8"):
+def get_package_resource(package_name, asset_name, get_path=False, recursive_search=False, return_binary=False, encoding="utf-8"):
     """
     Retrieve the asset specified in the specified package or None if it
     cannot be found.
@@ -148,15 +148,15 @@ def get_package_and_asset_name(path):
     if os.path.isabs(path):
         packages_path = sublime.packages_path()
         if path.startswith(packages_path):
-            package, asset = _search_for_package_and_asset(path, packages_path)
+            package, asset = _search_for_package_and_resource(path, packages_path)
 
         packages_path = sublime.installed_packages_path()
         if path.startswith(packages_path):
-            package, asset = _search_for_package_and_asset(path, packages_path)
+            package, asset = _search_for_package_and_resource(path, packages_path)
 
         packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
         if path.startswith(packages_path):
-            package, asset = _search_for_package_and_asset(path, packages_path)
+            package, asset = _search_for_package_and_resource(path, packages_path)
     else:
         path = re.sub(r"^Packages[/\\]", "", path)
         split = re.split(r"[/\\]", path, 1)
@@ -193,7 +193,7 @@ def _get_packages_from_directory(directory, file_ext=""):
         package_list.append(package)
     return package_list
 
-def _search_for_package_and_asset(path, packages_path):
+def _search_for_package_and_resource(path, packages_path):
     """
     Derive the package and asset from  a path.
     """
@@ -204,7 +204,7 @@ def _search_for_package_and_asset(path, packages_path):
         package = asset.replace(".sublime-package", "")
         asset = None
     else:
-        package, temp_asset = _search_for_package_and_asset(directory, packages_path)
+        package, temp_asset = _search_for_package_and_resource(directory, packages_path)
 
         if temp_asset is not None:
             temp_asset += os.sep + asset
@@ -357,7 +357,7 @@ class GetPackageAssetTests(unittest.TestCase):
         aseq(tc(), sorted(packages_list))
 
     def test_get_package_asset(self):
-        tc = get_package_asset
+        tc = get_package_resource
         aseq = self.assertEquals
 
         # Search sublime-package
