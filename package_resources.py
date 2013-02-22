@@ -22,19 +22,19 @@ VERSION = int(sublime.version())
 
 def get_package_resource(package_name, resource, get_path=False, recursive_search=False, return_binary=False, encoding="utf-8"):
     """
-    Retrieve the asset specified in the specified package or None if it
+    Retrieve the resource specified in the specified package or None if it
     cannot be found.
 
     Arguments:
-    package_name    Name of the packages whose asset you are searching for.
+    package_name    Name of the packages whose resource you are searching for.
     resource        Name of the resource to search for
 
     Keyword arguments:
     get_path            Boolean representing if the path or the content of the
-                        asset should be returned (default False)
+                        resource should be returned (default False)
 
     recursive_search    Boolean representing if the file specified should
-                        search for assets recursively or take the file as
+                        search for resources recursively or take the file as
                         an absolute path. If recursive, the first matching
                         file will be returned (default False).
 
@@ -47,7 +47,7 @@ def get_package_resource(package_name, resource, get_path=False, recursive_searc
                         (default utf-8).
 
     Return Value:
-    None if the asset does not exists. The contents of the asset if get_path is
+    None if the resource does not exists. The contents of the resource if get_path is
     False. A path to the file if get_path is True.
     """
 
@@ -101,6 +101,9 @@ def get_package_resource(package_name, resource, get_path=False, recursive_searc
 
 
 def list_package_files(package, ignored_directories=[]):
+    """
+    List files in the specified package.
+    """
     package_path = os.path.join(sublime.packages_path(), package) + os.sep
     sublime_package = package + ".sublime-package"
     path = None
@@ -162,36 +165,40 @@ def _normalize_to_sublime_path(path):
 
 def get_package_and_resource_name(path):
     """
-    This method will return the package name and asset name from a path.
+    This method will return the package name and resource name from a path.
 
     Arguments:
-    path    Path to parse for package and asset name.
+    path    Path to parse for package and resource name.
     """
     package = None
-    asset = None
+    resource = None
     path = _normalize_to_sublime_path(path)
     if os.path.isabs(path):
         packages_path = _normalize_to_sublime_path(sublime.packages_path())
         if path.startswith(packages_path):
-            package, asset = _search_for_package_and_resource(path, packages_path)
+            package, resource = _search_for_package_and_resource(path, packages_path)
 
         if int(sublime.version()) >= 3006:
             packages_path = _normalize_to_sublime_path(sublime.installed_packages_path())
             if path.startswith(packages_path):
-                package, asset = _search_for_package_and_resource(path, packages_path)
+                package, resource = _search_for_package_and_resource(path, packages_path)
 
             packages_path = _normalize_to_sublime_path(os.path.dirname(sublime.executable_path()) + os.sep + "Packages")
             if path.startswith(packages_path):
-                package, asset = _search_for_package_and_resource(path, packages_path)
+                package, resource = _search_for_package_and_resource(path, packages_path)
     else:
         path = re.sub(r"^Packages/", "", path)
         split = re.split(r"/", path, 1)
         package = split[0]
-        asset = split[1]
+        package = package.replace(".sublime-package", "")
+        resource = split[1]
 
-    return (package, asset)
+    return (package, resource)
 
 def get_packages_list(ignore_packages=True):
+    """
+    Return a list of packages.
+    """
     package_set = set()
     package_set.update(_get_packages_from_directory(sublime.packages_path()))
 
@@ -222,7 +229,7 @@ def _get_packages_from_directory(directory, file_ext=""):
 
 def _search_for_package_and_resource(path, packages_path):
     """
-    Derive the package and asset from  a path.
+    Derive the package and resource from  a path.
     """
     relative_package_path = path.replace(packages_path + "/", "")
 
@@ -243,7 +250,7 @@ def _list_files_in_zip(package_path, package):
 
 def _search_zip_for_file(packages_path, package, file_name, path, recursive_search, return_binary, encoding):
     """
-    Search a zip for an asset.
+    Search a zip for an resource.
     """
     if not os.path.exists(os.path.join(packages_path, package)):
         return None
@@ -292,96 +299,25 @@ import unittest
 
 class GetPackageAssetTests(unittest.TestCase):
     def test_list_package_files(self):
-        tc = list_package_files
-        aseq = self.assertEquals
-        default_files = ['Add Line Before.sublime-macro',
-        'Add Line in Braces.sublime-macro', 'Add Line.sublime-macro',
-        'Context.sublime-menu', 'Default (Linux).sublime-keymap',
-        'Default (Linux).sublime-mousemap', 'Default (OSX).sublime-keymap',
-        'Default (OSX).sublime-mousemap', 'Default (Windows).sublime-keymap',
-        'Default (Windows).sublime-mousemap', 'Default.sublime-commands',
-        'Delete Left Right.sublime-macro', 'Delete Line.sublime-macro',
-        'Delete to BOL.sublime-macro', 'Delete to EOL.sublime-macro',
-        'Delete to Hard BOL.sublime-macro', 'Delete to Hard EOL.sublime-macro',
-        'Distraction Free.sublime-settings', 'Find Results.hidden-tmLanguage',
-        'Find in Files.sublime-menu', 'Icon.png',
-        'Indentation Rules - Comments.tmPreferences',
-        'Indentation Rules.tmPreferences', 'Indentation.sublime-menu',
-        'Indexed Symbol List.tmPreferences', 'Main.sublime-menu',
-        'Minimap.sublime-settings', 'Preferences (Linux).sublime-settings',
-        'Preferences (OSX).sublime-settings', 'Preferences (Windows).sublime-settings',
-        'Preferences.sublime-settings', 'Regex Format Widget.sublime-settings',
-        'Regex Widget.sublime-settings', 'Side Bar Mount Point.sublime-menu',
-        'Side Bar.sublime-menu', 'Symbol List.tmPreferences', 'Syntax.sublime-menu',
-        'Tab Context.sublime-menu', 'Widget Context.sublime-menu',
-        'Widget.sublime-settings', 'block.py', 'comment.py', 'copy_path.py',
-        'delete_word.py', 'detect_indentation.py', 'duplicate_line.py',
-        'echo.py', 'exec.py', 'fold.py', 'font.py', 'goto_line.py',
-        'indentation.py', 'kill_ring.py', 'mark.py', 'new_templates.py',
-        'open_file_settings.py', 'open_in_browser.py', 'pane.py', 'paragraph.py',
-        'save_on_focus_lost.py', 'scroll.py',
-        'send2trash/__init__.py', 'send2trash/plat_osx.py',
-        'send2trash/plat_other.py', 'send2trash/plat_win.py',
-        'set_unsaved_view_name.py', 'side_bar.py', 'sort.py', 'swap_line.py',
-        'switch_file.py', 'symbol.py', 'transform.py', 'transpose.py',
-        'trim_trailing_white_space.py']
-
-        aseq(tc("Default"), sorted(default_files))
-
-        default_files = ['Add Line Before.sublime-macro',
-        'Add Line in Braces.sublime-macro', 'Add Line.sublime-macro',
-        'Context.sublime-menu', 'Default (Linux).sublime-keymap',
-        'Default (Linux).sublime-mousemap', 'Default (OSX).sublime-keymap',
-        'Default (OSX).sublime-mousemap', 'Default (Windows).sublime-keymap',
-        'Default (Windows).sublime-mousemap', 'Default.sublime-commands',
-        'Delete Left Right.sublime-macro', 'Delete Line.sublime-macro',
-        'Delete to BOL.sublime-macro', 'Delete to EOL.sublime-macro',
-        'Delete to Hard BOL.sublime-macro', 'Delete to Hard EOL.sublime-macro',
-        'Distraction Free.sublime-settings', 'Find Results.hidden-tmLanguage',
-        'Find in Files.sublime-menu', 'Icon.png',
-        'Indentation Rules - Comments.tmPreferences',
-        'Indentation Rules.tmPreferences', 'Indentation.sublime-menu',
-        'Indexed Symbol List.tmPreferences', 'Main.sublime-menu',
-        'Minimap.sublime-settings', 'Preferences (Linux).sublime-settings',
-        'Preferences (OSX).sublime-settings', 'Preferences (Windows).sublime-settings',
-        'Preferences.sublime-settings', 'Regex Format Widget.sublime-settings',
-        'Regex Widget.sublime-settings', 'Side Bar Mount Point.sublime-menu',
-        'Side Bar.sublime-menu', 'Symbol List.tmPreferences', 'Syntax.sublime-menu',
-        'Tab Context.sublime-menu', 'Widget Context.sublime-menu',
-        'Widget.sublime-settings', 'block.py', 'comment.py', 'copy_path.py',
-        'delete_word.py', 'detect_indentation.py', 'duplicate_line.py',
-        'echo.py', 'exec.py', 'fold.py', 'font.py', 'goto_line.py',
-        'indentation.py', 'kill_ring.py', 'mark.py', 'new_templates.py',
-        'open_file_settings.py', 'open_in_browser.py', 'pane.py', 'paragraph.py',
-        'save_on_focus_lost.py', 'scroll.py',
-        'set_unsaved_view_name.py', 'side_bar.py', 'sort.py', 'swap_line.py',
-        'switch_file.py', 'symbol.py', 'transform.py', 'transpose.py',
-        'trim_trailing_white_space.py']
-
-        aseq(tc("Default", ["send2trash"]), sorted(default_files))
+        list_package_files("Default")
+        list_package_files("Default", ["send2trash"])
 
     def test_get_packages_list(self):
         get_packages_list()
 
-    def test_get_package_asset(self):
+    def test_get_package_resource(self):
         tc = get_package_resource
         aseq = self.assertEquals
 
-        # Search sublime-package
-        res = tc("Default", "copy_path.py")
-        aseq(res, """\
-import sublime, sublime_plugin
+        # Search sublime-package. No assertion since
+        package, resource = get_package_and_resource_name(os.path.abspath(__file__))
+        res = get_package_resource(package, resource)
+        with codecs.open(__file__, "r") as file_obj:
+            content = file_obj.read()
+        aseq(res, content)
 
-class CopyPathCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        if len(self.view.file_name()) > 0:
-            sublime.set_clipboard(self.view.file_name())
-            sublime.status_message("Copied file path")
-
-    def is_enabled(self):
-        return self.view.file_name() != None and len(self.view.file_name()) > 0
-""")
-        res = tc("Default", "not_here.txt")
+        #
+        res = get_package_resource("Default", "not_here.txt")
         aseq(res, None)
 
 
@@ -390,55 +326,45 @@ class CopyPathCommand(sublime_plugin.TextCommand):
         tc = get_package_and_resource_name
         aseq = self.assertEquals
 
-        # Test relative unneted
         r1 = (tc("Packages\\Relative\\one.py"))
         r2 = (tc("Packages\\Relative\\nested\\one.py"))
-
-        # Test nested
         r3 = (tc(sublime.packages_path() + "\\Absolute\\Nested\\asset.pth"))
-        r4 = (tc(sublime.installed_packages_path() + "\\Absolute.sublime-package\\Nested\\asset.pth"))
-        executable_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
-        r5 = (tc(executable_path + "\\Absolute.sublime-package\\Nested\\asset.pth"))
-
-        # Test Unnested
-        r6 = (tc(sublime.packages_path() + "\\Absolute\\asset.pth"))
-        r7 = (tc(sublime.installed_packages_path() + "\\Absolute.sublime-package\\asset.pth"))
-        r8 = (tc(executable_path + "\\Absolute.sublime-package\\asset.pth"))
+        r4 = (tc(sublime.packages_path() + "\\Absolute\\asset.pth"))
 
         aseq(r1, ('Relative', 'one.py'))
         aseq(r2, ('Relative', 'nested/one.py'))
         aseq(r3, ('Absolute', 'Nested/asset.pth'))
-        aseq(r4, ('Absolute', 'Nested/asset.pth'))
-        aseq(r5, ('Absolute', 'Nested/asset.pth'))
+        aseq(r4, ('Absolute', 'asset.pth'))
 
-        aseq(r6, ('Absolute', 'asset.pth'))
-        aseq(r7, ('Absolute', 'asset.pth'))
-        aseq(r8, ('Absolute', 'asset.pth'))
-
-        # Test relative unneted
         r1 = (tc("Packages/Relative/one.py"))
         r2 = (tc("Packages/Relative/nested/one.py"))
-
-        # Test nested
         r3 = (tc(sublime.packages_path() + "/Absolute/Nested/asset.pth"))
-        r4 = (tc(sublime.installed_packages_path() + "/Absolute.sublime-package/Nested/asset.pth"))
-        executable_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
-        r5 = (tc(executable_path + "/Absolute.sublime-package/Nested/asset.pth"))
+        r4 = (tc(sublime.packages_path() + "/Absolute/asset.pth"))
 
-        # Test Unnested
-        r6 = (tc(sublime.packages_path() + "/Absolute/asset.pth"))
-        r7 = (tc(sublime.installed_packages_path() + "/Absolute.sublime-package/asset.pth"))
-        r8 = (tc(executable_path + "/Absolute.sublime-package/asset.pth"))
 
-        aseq(r1, ('Relative',   'one.py'))
-        aseq(r2, ('Relative',   'nested/one.py'))
-        aseq(r3, ('Absolute',   'Nested/asset.pth'))
-        aseq(r4, ('Absolute',   'Nested/asset.pth'))
-        aseq(r5, ('Absolute',   'Nested/asset.pth'))
+        aseq(r1, ('Relative', 'one.py'))
+        aseq(r2, ('Relative', 'nested/one.py'))
+        aseq(r3, ('Absolute', 'Nested/asset.pth'))
+        aseq(r4, ('Absolute', 'asset.pth'))
 
-        aseq(r6, ('Absolute', 'asset.pth'))
-        aseq(r7, ('Absolute', 'asset.pth'))
-        aseq(r8, ('Absolute', 'asset.pth'))
+        if VERSION > 3000:
+            r1 = (tc(sublime.installed_packages_path() + "\\Absolute.sublime-package\\Nested\\asset.pth"))
+            r2 = (tc(sublime.installed_packages_path() + "\\Absolute.sublime-package\\asset.pth"))
+            aseq(r1, ('Absolute', 'Nested/asset.pth'))
+            aseq(r2, ('Absolute', 'asset.pth'))
+            r1 = (tc(sublime.installed_packages_path() + "/Absolute.sublime-package/Nested/asset.pth"))
+            r2 = (tc(sublime.installed_packages_path() + "/Absolute.sublime-package/asset.pth"))
+            aseq(r1, ('Absolute', 'Nested/asset.pth'))
+            aseq(r2, ('Absolute', 'asset.pth'))
+            executable_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
+            r1 = (tc(executable_path + "\\Absolute.sublime-package\\Nested\\asset.pth"))
+            r2 = (tc(executable_path + "\\Absolute.sublime-package\\asset.pth"))
+            aseq(r1, ('Absolute', 'Nested/asset.pth'))
+            aseq(r2, ('Absolute', 'asset.pth'))
+            r1 = (tc(executable_path + "/Absolute.sublime-package/Nested/asset.pth"))
+            r2 = (tc(executable_path + "/Absolute.sublime-package/asset.pth"))
+            aseq(r1, ('Absolute', 'Nested/asset.pth'))
+            aseq(r2, ('Absolute', 'asset.pth'))
 
 ################ ONLY LOAD TESTS WHEN DEVELOPING NOT ON START UP ###############
 
