@@ -9,14 +9,25 @@ import tempfile
 import re
 import codecs
 
-def get_package_resource(package_name, asset_name, get_path=False, recursive_search=False, return_binary=False, encoding="utf-8"):
+
+__all__ = [
+    "get_package_resource",
+    "list_package_files",
+    "get_package_and_resource_name",
+    "get_packages_list"
+]
+
+
+VERSION = int(sublime.version())
+
+def get_package_resource(package_name, resource, get_path=False, recursive_search=False, return_binary=False, encoding="utf-8"):
     """
     Retrieve the asset specified in the specified package or None if it
     cannot be found.
 
     Arguments:
     package_name    Name of the packages whose asset you are searching for.
-    asset_name      Name of the asset to search for
+    resource        Name of the resource to search for
 
     Keyword arguments:
     get_path            Boolean representing if the path or the content of the
@@ -24,7 +35,8 @@ def get_package_resource(package_name, asset_name, get_path=False, recursive_sea
 
     recursive_search    Boolean representing if the file specified should
                         search for assets recursively or take the file as
-                        an absolute path (default False).
+                        an absolute path. If recursive, the first matching
+                        file will be returned (default False).
 
     return_binary       Boolean representing if the binary representation of
                         a file should be returned. Only takes affect if get_path
@@ -43,43 +55,50 @@ def get_package_resource(package_name, asset_name, get_path=False, recursive_sea
     sublime_package = package_name + ".sublime-package"
     path = None
 
-    if os.path.exists(os.path.join(packages_path, package_name)):
-        if recursive_search:
-            path = _find_file(os.path.join(packages_path, package_name), asset_name)
-        elif os.path.exists(os.path.join(packages_path, package_name, asset_name)):
-            path = os.path.join(packages_path, package_name, asset_name)
+    if VERSION > 3013:
+        try:
+            content = sublime.load_resource("Package/" + package_name + "/" + resource)
+        except IOError:
+            content = None
+        return content
+    else:
+        if os.path.exists(os.path.join(packages_path, package_name)):
+            if recursive_search:
+                path = _find_file(os.path.join(packages_path, package_name), resource)
+            elif os.path.exists(os.path.join(packages_path, package_name, resource)):
+                path = os.path.join(packages_path, package_name, resource)
 
-        if path != None and os.path.exists(path):
-
-            if get_path:
-                return  path
-            else:
-                if return_binary:
-                    mode = "rb"
-                    encoding = None
+            if path != None and os.path.exists(path):
+                if get_path:
+                    return  path
                 else:
-                    mode = "r"
-                with codecs.open(path, mode, encoding=encoding) as file_obj:
-                    content = file_obj.read()
+                    if return_binary:
+                        mode = "rb"
+                        encoding = None
+                    else:
+                        mode = "r"
+                    with codecs.open(path, mode, encoding=encoding) as file_obj:
+                        content = file_obj.read()
 
-                return content
+                    return content
 
-    if int(sublime.version()) >= 3006:
-        packages_path = sublime.installed_packages_path()
+        if VERSION >= 3006:
+            packages_path = sublime.installed_packages_path()
 
-        if os.path.exists(os.path.join(packages_path, sublime_package)):
-            ret_value = _search_zip_for_file(packages_path, sublime_package, asset_name, get_path, recursive_search, return_binary, encoding)
-            if ret_value != None:
-                return ret_value
+            if os.path.exists(os.path.join(packages_path, sublime_package)):
+                ret_value = _search_zip_for_file(packages_path, sublime_package, resource, get_path, recursive_search, return_binary, encoding)
+                if ret_value != None:
+                    return ret_value
 
-        packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
+            packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
 
-        if os.path.exists(os.path.join(packages_path, sublime_package)):
-            ret_value = _search_zip_for_file(packages_path, sublime_package, asset_name, get_path, recursive_search, return_binary, encoding)
-            if ret_value != None:
-                return ret_value
+            if os.path.exists(os.path.join(packages_path, sublime_package)):
+                ret_value = _search_zip_for_file(packages_path, sublime_package, resource, get_path, recursive_search, return_binary, encoding)
+                if ret_value != None:
+                    return ret_value
 
     return None
+
 
 def list_package_files(package, ignored_directories=[]):
     package_path = os.path.join(sublime.packages_path(), package) + os.sep
@@ -99,7 +118,7 @@ def list_package_files(package, ignored_directories=[]):
 
     file_set.update(file_list)
 
-    if int(sublime.version()) >= 3006:
+    if VERSION >= 3006:
         packages_path = sublime.installed_packages_path()
 
         if os.path.exists(os.path.join(packages_path, sublime_package)):
@@ -114,8 +133,9 @@ def list_package_files(package, ignored_directories=[]):
     ignored_regex_list = []
     file_list = []
 
+
     for ignored_directory in ignored_directories:
-        temp = "%s[/\\\]" % ignored_directory
+        temp = "%s/" % ignored_directory
         ignored_regex_list.append(re.compile(temp))
 
     is_ignored = False
@@ -129,16 +149,18 @@ def list_package_files(package, ignored_directories=[]):
         if is_ignored:
             continue
 
-        if os.sep == "/":
-            replace_sep = "\\"
-        else:
-            replace_sep = "/"
-        file_list.append(filename.replace(replace_sep, os.sep))
+        file_list.append(_normalize_to_sublime_path(filename))
 
     return sorted(file_list)
 
 
-def get_package_and_asset_name(path):
+def _normalize_to_sublime_path(path):
+    path = os.path.normpath(path)
+    path = re.sub(r"^([a-zA-Z]):", "/\\1", path)
+    path = re.sub(r"\\", "/", path)
+    return path
+
+def get_package_and_resource_name(path):
     """
     This method will return the package name and asset name from a path.
 
@@ -147,23 +169,23 @@ def get_package_and_asset_name(path):
     """
     package = None
     asset = None
-
+    path = _normalize_to_sublime_path(path)
     if os.path.isabs(path):
-        packages_path = sublime.packages_path()
+        packages_path = _normalize_to_sublime_path(sublime.packages_path())
         if path.startswith(packages_path):
             package, asset = _search_for_package_and_resource(path, packages_path)
 
         if int(sublime.version()) >= 3006:
-            packages_path = sublime.installed_packages_path()
+            packages_path = _normalize_to_sublime_path(sublime.installed_packages_path())
             if path.startswith(packages_path):
                 package, asset = _search_for_package_and_resource(path, packages_path)
 
-            packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
+            packages_path = _normalize_to_sublime_path(os.path.dirname(sublime.executable_path()) + os.sep + "Packages")
             if path.startswith(packages_path):
                 package, asset = _search_for_package_and_resource(path, packages_path)
     else:
-        path = re.sub(r"^Packages[/\\]", "", path)
-        split = re.split(r"[/\\]", path, 1)
+        path = re.sub(r"^Packages/", "", path)
+        split = re.split(r"/", path, 1)
         package = split[0]
         asset = split[1]
 
@@ -202,20 +224,12 @@ def _search_for_package_and_resource(path, packages_path):
     """
     Derive the package and asset from  a path.
     """
-    package = os.path.basename(os.path.dirname(path))
+    relative_package_path = path.replace(packages_path + "/", "")
 
-    directory, asset = os.path.split(path)
-    if directory == packages_path:
-        package = asset.replace(".sublime-package", "")
-        asset = None
-    else:
-        package, temp_asset = _search_for_package_and_resource(directory, packages_path)
+    package, resource = re.split(r"/", relative_package_path, 1)
+    package = package.replace(".sublime-package", "")
+    return (package, resource)
 
-        if temp_asset is not None:
-            temp_asset += os.sep + asset
-            asset = temp_asset
-
-    return (package, asset)
 
 def _list_files_in_zip(package_path, package):
     if not os.path.exists(os.path.join(package_path, package)):
@@ -306,8 +320,8 @@ class GetPackageAssetTests(unittest.TestCase):
         'indentation.py', 'kill_ring.py', 'mark.py', 'new_templates.py',
         'open_file_settings.py', 'open_in_browser.py', 'pane.py', 'paragraph.py',
         'save_on_focus_lost.py', 'scroll.py',
-        'send2trash\\__init__.py', 'send2trash\\plat_osx.py',
-        'send2trash\\plat_other.py', 'send2trash\\plat_win.py',
+        'send2trash/__init__.py', 'send2trash/plat_osx.py',
+        'send2trash/plat_other.py', 'send2trash/plat_win.py',
         'set_unsaved_view_name.py', 'side_bar.py', 'sort.py', 'swap_line.py',
         'switch_file.py', 'symbol.py', 'transform.py', 'transpose.py',
         'trim_trailing_white_space.py']
@@ -347,19 +361,7 @@ class GetPackageAssetTests(unittest.TestCase):
         aseq(tc("Default", ["send2trash"]), sorted(default_files))
 
     def test_get_packages_list(self):
-        packages_list = ['ASP', 'ActionScript', 'AdvancedNewFile', 'AppleScript',
-        'Batch File', 'C#', 'C++', 'CSS', 'Clojure', 'Color Scheme - Default',
-        'D', 'Default', 'Diff', 'Erlang', 'FuzzyFileNav', 'Go', 'Graphviz',
-        'Groovy', 'HTML', 'Haskell', 'Java', 'JavaScript', 'LaTeX',
-        'Language - English', 'Lisp', 'Lua', 'Makefile', 'Markdown', 'Matlab',
-        'OCaml', 'Objective-C', 'PHP', 'PackageResources', 'Perl', 'Python', 'R',
-        'Rails', 'Regular Expressions', 'RestructuredText', 'Ruby', 'SQL', 'Scala',
-        'ShellScript', 'TCL', 'Text', 'Textile', 'Theme - Default', 'User', 'XML',
-        'YAML', 'PackageResourceViewer']
-
-        tc = get_packages_list
-        aseq = self.assertEquals
-        aseq(tc(), sorted(packages_list))
+        get_packages_list()
 
     def test_get_package_asset(self):
         tc = get_package_resource
@@ -384,53 +386,59 @@ class CopyPathCommand(sublime_plugin.TextCommand):
 
 
 
-    def test_get_package_and_asset_name(self):
-        tc = get_package_and_asset_name
+    def test_get_package_and_resource_name(self):
+        tc = get_package_and_resource_name
         aseq = self.assertEquals
 
         # Test relative unneted
-        r1 = (tc("Packages/Relative/one.py"))
-        r2 = (tc("Packages\\Relative\\one.py"))
-        r3 = (tc("Packages/Relative/nested/one.py"))
-        r4 = (tc("Packages\\Relative\\nested\\one.py"))
+        r1 = (tc("Packages\\Relative\\one.py"))
+        r2 = (tc("Packages\\Relative\\nested\\one.py"))
 
         # Test nested
-        r5 = (tc("C:\\Abs\\Packages\\ZipPseudo.sublime-package\\nested\\sort.py"))
-        r6 = (tc(sublime.packages_path() + "/Absolute/Nested/asset.pth"))
-        r7 = (tc(sublime.packages_path() + "\\Absolute\\Nested\\asset.pth"))
-        r8 = (tc(sublime.installed_packages_path() + "/Absolute.sublime-package/Nested/asset.pth"))
-        r9 = (tc(sublime.installed_packages_path() + "\\Absolute.sublime-package\\Nested\\asset.pth"))
+        r3 = (tc(sublime.packages_path() + "\\Absolute\\Nested\\asset.pth"))
+        r4 = (tc(sublime.installed_packages_path() + "\\Absolute.sublime-package\\Nested\\asset.pth"))
         executable_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
-        r10 = (tc(executable_path + "/Absolute.sublime-package/Nested/asset.pth"))
-        r11 = (tc(executable_path + "\\Absolute.sublime-package\\Nested\\asset.pth"))
+        r5 = (tc(executable_path + "\\Absolute.sublime-package\\Nested\\asset.pth"))
 
         # Test Unnested
-        r12 = (tc(sublime.packages_path() + "/Absolute/asset.pth"))
-        r13 = (tc(sublime.packages_path() + "\\Absolute\\asset.pth"))
-        r14 = (tc(sublime.installed_packages_path() + "/Absolute.sublime-package/asset.pth"))
-        r15 = (tc(sublime.installed_packages_path() + "\\Absolute.sublime-package\\asset.pth"))
+        r6 = (tc(sublime.packages_path() + "\\Absolute\\asset.pth"))
+        r7 = (tc(sublime.installed_packages_path() + "\\Absolute.sublime-package\\asset.pth"))
+        r8 = (tc(executable_path + "\\Absolute.sublime-package\\asset.pth"))
+
+        aseq(r1, ('Relative', 'one.py'))
+        aseq(r2, ('Relative', 'nested/one.py'))
+        aseq(r3, ('Absolute', 'Nested/asset.pth'))
+        aseq(r4, ('Absolute', 'Nested/asset.pth'))
+        aseq(r5, ('Absolute', 'Nested/asset.pth'))
+
+        aseq(r6, ('Absolute', 'asset.pth'))
+        aseq(r7, ('Absolute', 'asset.pth'))
+        aseq(r8, ('Absolute', 'asset.pth'))
+
+        # Test relative unneted
+        r1 = (tc("Packages/Relative/one.py"))
+        r2 = (tc("Packages/Relative/nested/one.py"))
+
+        # Test nested
+        r3 = (tc(sublime.packages_path() + "/Absolute/Nested/asset.pth"))
+        r4 = (tc(sublime.installed_packages_path() + "/Absolute.sublime-package/Nested/asset.pth"))
         executable_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
-        r16 = (tc(executable_path + "/Absolute.sublime-package/asset.pth"))
-        r17 = (tc(executable_path + "\\Absolute.sublime-package\\asset.pth"))
+        r5 = (tc(executable_path + "/Absolute.sublime-package/Nested/asset.pth"))
+
+        # Test Unnested
+        r6 = (tc(sublime.packages_path() + "/Absolute/asset.pth"))
+        r7 = (tc(sublime.installed_packages_path() + "/Absolute.sublime-package/asset.pth"))
+        r8 = (tc(executable_path + "/Absolute.sublime-package/asset.pth"))
 
         aseq(r1, ('Relative',   'one.py'))
-        aseq(r2, ('Relative',   'one.py'))
-        aseq(r3, ('Relative',   'nested/one.py'))
-        aseq(r4, ('Relative',   'nested\\one.py'))
-        aseq(r5, (None,  None))
-        aseq(r6, ('Absolute',   'Nested' + os.sep + 'asset.pth'))
-        aseq(r7, ('Absolute',   'Nested' + os.sep + 'asset.pth'))
-        aseq(r8, ('Absolute',   'Nested' + os.sep + 'asset.pth'))
-        aseq(r9, ('Absolute',   'Nested' + os.sep + 'asset.pth'))
-        aseq(r10, ('Absolute',   'Nested' + os.sep + 'asset.pth'))
-        aseq(r11, ('Absolute',   'Nested' + os.sep + 'asset.pth'))
+        aseq(r2, ('Relative',   'nested/one.py'))
+        aseq(r3, ('Absolute',   'Nested/asset.pth'))
+        aseq(r4, ('Absolute',   'Nested/asset.pth'))
+        aseq(r5, ('Absolute',   'Nested/asset.pth'))
 
-        aseq(r12, ('Absolute', 'asset.pth'))
-        aseq(r13, ('Absolute', 'asset.pth'))
-        aseq(r14, ('Absolute', 'asset.pth'))
-        aseq(r15, ('Absolute', 'asset.pth'))
-        aseq(r16, ('Absolute', 'asset.pth'))
-        aseq(r17, ('Absolute', 'asset.pth'))
+        aseq(r6, ('Absolute', 'asset.pth'))
+        aseq(r7, ('Absolute', 'asset.pth'))
+        aseq(r8, ('Absolute', 'asset.pth'))
 
 ################ ONLY LOAD TESTS WHEN DEVELOPING NOT ON START UP ###############
 
