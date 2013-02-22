@@ -210,7 +210,7 @@ def get_packages_list(ignore_packages=True):
 
     if ignore_packages:
         ignored_package_list = sublime.load_settings(
-            "Preferences.sublime-settings").get("ignored_packages")
+            "Preferences.sublime-settings").get("ignored_packages", [])
         for ignored in ignored_package_list:
             package_set.discard(ignored)
 
@@ -311,8 +311,8 @@ class GetPackageAssetTests(unittest.TestCase):
 
         # Search sublime-package. No assertion since
         package, resource = get_package_and_resource_name(os.path.abspath(__file__))
-        res = get_package_resource(package, resource)
-        with codecs.open(__file__, "r") as file_obj:
+        res = get_package_resource(package, resource, return_binary=True)
+        with codecs.open(__file__, "rb") as file_obj:
             content = file_obj.read()
         aseq(res, content)
 
