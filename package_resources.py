@@ -64,19 +64,20 @@ def get_package_resource(package_name, asset_name, get_path=False, recursive_sea
 
                 return content
 
-    packages_path = sublime.installed_packages_path()
+    if int(sublime.version()) >= 3006:
+        packages_path = sublime.installed_packages_path()
 
-    if os.path.exists(os.path.join(packages_path, sublime_package)):
-        ret_value = _search_zip_for_file(packages_path, sublime_package, asset_name, get_path, recursive_search, return_binary, encoding)
-        if ret_value != None:
-            return ret_value
+        if os.path.exists(os.path.join(packages_path, sublime_package)):
+            ret_value = _search_zip_for_file(packages_path, sublime_package, asset_name, get_path, recursive_search, return_binary, encoding)
+            if ret_value != None:
+                return ret_value
 
-    packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
+        packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
 
-    if os.path.exists(os.path.join(packages_path, sublime_package)):
-        ret_value = _search_zip_for_file(packages_path, sublime_package, asset_name, get_path, recursive_search, return_binary, encoding)
-        if ret_value != None:
-            return ret_value
+        if os.path.exists(os.path.join(packages_path, sublime_package)):
+            ret_value = _search_zip_for_file(packages_path, sublime_package, asset_name, get_path, recursive_search, return_binary, encoding)
+            if ret_value != None:
+                return ret_value
 
     return None
 
@@ -98,19 +99,21 @@ def list_package_files(package, ignored_directories=[]):
 
     file_set.update(file_list)
 
-    packages_path = sublime.installed_packages_path()
+    if int(sublime.version()) >= 3006:
+        packages_path = sublime.installed_packages_path()
 
-    if os.path.exists(os.path.join(packages_path, sublime_package)):
-        file_set.update(_list_files_in_zip(packages_path, sublime_package))
+        if os.path.exists(os.path.join(packages_path, sublime_package)):
+            file_set.update(_list_files_in_zip(packages_path, sublime_package))
 
 
-    packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
+        packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
 
-    if os.path.exists(os.path.join(packages_path, sublime_package)):
-       file_set.update(_list_files_in_zip(packages_path, sublime_package))
+        if os.path.exists(os.path.join(packages_path, sublime_package)):
+           file_set.update(_list_files_in_zip(packages_path, sublime_package))
 
-    file_list = []
     ignored_regex_list = []
+    file_list = []
+
     for ignored_directory in ignored_directories:
         temp = "%s[/\\\]" % ignored_directory
         ignored_regex_list.append(re.compile(temp))
@@ -150,13 +153,14 @@ def get_package_and_asset_name(path):
         if path.startswith(packages_path):
             package, asset = _search_for_package_and_resource(path, packages_path)
 
-        packages_path = sublime.installed_packages_path()
-        if path.startswith(packages_path):
-            package, asset = _search_for_package_and_resource(path, packages_path)
+        if int(sublime.version()) >= 3006:
+            packages_path = sublime.installed_packages_path()
+            if path.startswith(packages_path):
+                package, asset = _search_for_package_and_resource(path, packages_path)
 
-        packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
-        if path.startswith(packages_path):
-            package, asset = _search_for_package_and_resource(path, packages_path)
+            packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
+            if path.startswith(packages_path):
+                package, asset = _search_for_package_and_resource(path, packages_path)
     else:
         path = re.sub(r"^Packages[/\\]", "", path)
         split = re.split(r"[/\\]", path, 1)
@@ -169,10 +173,11 @@ def get_packages_list(ignore_packages=True):
     package_set = set()
     package_set.update(_get_packages_from_directory(sublime.packages_path()))
 
-    package_set.update(_get_packages_from_directory(sublime.installed_packages_path(), ".sublime-package"))
+    if int(sublime.version()) >= 3006:
+        package_set.update(_get_packages_from_directory(sublime.installed_packages_path(), ".sublime-package"))
 
-    executable_package_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
-    package_set.update(_get_packages_from_directory(executable_package_path, ".sublime-package"))
+        executable_package_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
+        package_set.update(_get_packages_from_directory(executable_package_path, ".sublime-package"))
 
     if ignore_packages:
         ignored_package_list = sublime.load_settings(
@@ -350,7 +355,7 @@ class GetPackageAssetTests(unittest.TestCase):
         'OCaml', 'Objective-C', 'PHP', 'PackageResources', 'Perl', 'Python', 'R',
         'Rails', 'Regular Expressions', 'RestructuredText', 'Ruby', 'SQL', 'Scala',
         'ShellScript', 'TCL', 'Text', 'Textile', 'Theme - Default', 'User', 'XML',
-        'YAML', 'PackageHelper']
+        'YAML', 'PackageResourceViewer']
 
         tc = get_packages_list
         aseq = self.assertEquals
