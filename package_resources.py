@@ -100,7 +100,7 @@ def get_package_resource(package_name, resource, get_path=False, recursive_searc
     return None
 
 
-def list_package_files(package, ignored_directories=[], ignored_files=[]):
+def list_package_files(package, ignore_patterns=[]):
     """
     List files in the specified package.
     """
@@ -123,7 +123,6 @@ def list_package_files(package, ignored_directories=[], ignored_files=[]):
         if os.path.exists(os.path.join(packages_path, sublime_package)):
             file_set.update(_list_files_in_zip(packages_path, sublime_package))
 
-
         packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
 
         if os.path.exists(os.path.join(packages_path, sublime_package)):
@@ -132,24 +131,24 @@ def list_package_files(package, ignored_directories=[], ignored_files=[]):
     file_list = []
 
     for filename in file_set:
-        if not _ignore_file(filename, ignored_directories, ignored_files):
+        ignore = False
+
+        if not _ignore_file(filename, ignore_patterns):
             file_list.append(_normalize_to_sublime_path(filename))
+
     return sorted(file_list)
 
-def _ignore_file(filename, ignored_directories=[], ignored_files=[], iteration=0):
+def _ignore_file(filename, ignore_patterns=[], iteration=0):
+
     ignore = False
     directory, base = os.path.split(filename)
-    # base will be a file for the first iteration and a directory for subsequent iterations.
-    if iteration == 0:
-        if base in ignored_files:
-            return True
-    else:
-        if base in ignored_directories:
+    for pattern in ignore_patterns:
+        if re.match(pattern, base):
             return True
 
     if len(directory) > 0:
         iteration += 1
-        ignore = _ignore_file(directory, ignored_directories, ignored_files, iteration)
+        ignore = _ignore_file(directory, ignore_patterns, iteration)
 
     return ignore
 
