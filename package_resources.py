@@ -100,7 +100,7 @@ def get_package_resource(package_name, resource, get_path=False, recursive_searc
     return None
 
 
-def list_package_files(package, ignored_directories=[]):
+def list_package_files(package, ignored_directories=[], ignored_files=[]):
     """
     List files in the specified package.
     """
@@ -111,10 +111,6 @@ def list_package_files(package, ignored_directories=[]):
     file_list = []
     if os.path.exists(package_path):
         for root, directories, filenames in os.walk(package_path):
-            for directory in directories:
-                if directory in ignored_directories:
-                    directories.remove(directory)
-
             temp = root.replace(package_path, "")
             for filename in filenames:
                 file_list.append(os.path.join(temp, filename))
@@ -133,28 +129,29 @@ def list_package_files(package, ignored_directories=[]):
         if os.path.exists(os.path.join(packages_path, sublime_package)):
            file_set.update(_list_files_in_zip(packages_path, sublime_package))
 
-    ignored_regex_list = []
     file_list = []
 
-
-    for ignored_directory in ignored_directories:
-        temp = "%s/" % ignored_directory
-        ignored_regex_list.append(re.compile(temp))
-
-    is_ignored = False
     for filename in file_set:
-        is_ignored = False
-        for ignored_regex in ignored_regex_list:
-            if ignored_regex.search(filename):
-                is_ignored = True
-                break
-
-        if is_ignored:
-            continue
-
-        file_list.append(_normalize_to_sublime_path(filename))
-
+        if not _ignore_file(filename, ignored_directories, ignored_files):
+            file_list.append(_normalize_to_sublime_path(filename))
     return sorted(file_list)
+
+def _ignore_file(filename, ignored_directories=[], ignored_files=[], iteration=0):
+    ignore = False
+    directory, base = os.path.split(filename)
+    # base will be a file for the first iteration and a directory for subsequent iterations.
+    if iteration == 0:
+        if base in ignored_files:
+            return True
+    else:
+        if base in ignored_directories:
+            return True
+
+    if len(directory) > 0:
+        iteration += 1
+        ignore = _ignore_file(directory, ignored_directories, ignored_files, iteration)
+
+    return ignore
 
 
 def _normalize_to_sublime_path(path):
