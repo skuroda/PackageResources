@@ -55,9 +55,12 @@ def get_package_resource(package_name, resource, get_path=False, recursive_searc
     sublime_package = package_name + ".sublime-package"
     path = None
 
-    if VERSION > 3013:
+    if VERSION > 3013 and not get_path and not recursive_search:
         try:
-            content = sublime.load_resource("Package/" + package_name + "/" + resource)
+            if return_binary:
+                content = sublime.load_binary_resource("Package/" + package_name + "/" + resource)
+            else:
+                content = sublime.load_resource("Package/" + package_name + "/" + resource)
         except IOError:
             content = None
         return content
@@ -104,8 +107,7 @@ def list_package_files(package, ignore_patterns=[]):
     """
     List files in the specified package.
     """
-    package_path = os.path.join(sublime.packages_path(), package) + os.sep
-    sublime_package = package + ".sublime-package"
+    package_path = os.path.join(sublime.packages_path(), package, "")
     path = None
     file_set = set()
     file_list = []
@@ -118,6 +120,7 @@ def list_package_files(package, ignore_patterns=[]):
     file_set.update(file_list)
 
     if VERSION >= 3006:
+        sublime_package = package + ".sublime-package"
         packages_path = sublime.installed_packages_path()
 
         if os.path.exists(os.path.join(packages_path, sublime_package)):
@@ -131,15 +134,12 @@ def list_package_files(package, ignore_patterns=[]):
     file_list = []
 
     for filename in file_set:
-        ignore = False
-
         if not _ignore_file(filename, ignore_patterns):
             file_list.append(_normalize_to_sublime_path(filename))
 
     return sorted(file_list)
 
-def _ignore_file(filename, ignore_patterns=[], iteration=0):
-
+def _ignore_file(filename, ignore_patterns=[]):
     ignore = False
     directory, base = os.path.split(filename)
     for pattern in ignore_patterns:
@@ -147,8 +147,7 @@ def _ignore_file(filename, ignore_patterns=[], iteration=0):
             return True
 
     if len(directory) > 0:
-        iteration += 1
-        ignore = _ignore_file(directory, ignore_patterns, iteration)
+        ignore = _ignore_file(directory, ignore_patterns)
 
     return ignore
 
