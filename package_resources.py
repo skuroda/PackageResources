@@ -9,9 +9,10 @@ import tempfile
 import re
 import codecs
 
-
 __all__ = [
-    "get_package_resource",
+    "get_resource",
+    "get_binary_resource",
+    "find_resource",
     "list_package_files",
     "get_package_and_resource_name",
     "get_packages_list"
@@ -20,87 +21,64 @@ __all__ = [
 
 VERSION = int(sublime.version())
 
-def get_package_resource(package_name, resource, get_path=False, recursive_search=False, return_binary=False, encoding="utf-8"):
-    """
-    Retrieve the resource specified in the specified package or None if it
-    cannot be found.
+def get_resource(package_name, resource, encoding="utf-8"):
+    return _get_resource(package_name, resource, encoding=encoding)
 
-    Arguments:
-    package_name    Name of the packages whose resource you are searching for.
-    resource        Name of the resource to search for
+def get_binary_resource(package_name, resource):
+    return _get_resource(package_name, resource, return_binary=True)
 
-    Keyword arguments:
-    get_path            Boolean representing if the path or the content of the
-                        resource should be returned (default False)
-
-    recursive_search    Boolean representing if the file specified should
-                        search for resources recursively or take the file as
-                        an absolute path. If recursive, the first matching
-                        file will be returned (default False).
-
-    return_binary       Boolean representing if the binary representation of
-                        a file should be returned. Only takes affect if get_path
-                        is True (default False).
-
-    encoding            String representing the encoding to use when reading.
-                        Only takes affect when return_binary is False
-                        (default utf-8).
-
-    Return Value:
-    None if the resource does not exists. The contents of the resource if get_path is
-    False. A path to the file if get_path is True.
-    """
-
+def _get_resource(package_name, resource, return_binary=False, encoding="utf-8"):
     packages_path = sublime.packages_path()
-    sublime_package = package_name + ".sublime-package"
-    path = None
-
-    if VERSION > 3013 and not get_path and not recursive_search:
+    content = None
+    if VERSION > 3013:
         try:
             if return_binary:
                 content = sublime.load_binary_resource("Package/" + package_name + "/" + resource)
             else:
                 content = sublime.load_resource("Package/" + package_name + "/" + resource)
         except IOError:
-            content = None
-        return content
+            pass
     else:
-        if os.path.exists(os.path.join(packages_path, package_name)):
-            if recursive_search:
-                path = _find_file(os.path.join(packages_path, package_name), resource)
-            elif os.path.exists(os.path.join(packages_path, package_name, resource)):
-                path = os.path.join(packages_path, package_name, resource)
-
-            if path != None and os.path.exists(path):
-                if get_path:
-                    return  path
-                else:
-                    if return_binary:
-                        mode = "rb"
-                        encoding = None
-                    else:
-                        mode = "r"
-                    with codecs.open(path, mode, encoding=encoding) as file_obj:
-                        content = file_obj.read()
-
-                    return content
+        path = None
+        if os.path.exists(os.path.join(packages_path, package_name, resource)):
+            path = os.path.join(packages_path, package_name, resource)
+            content = _get_directory_item_content(path, return_binary, encoding)
 
         if VERSION >= 3006:
-            packages_path = sublime.installed_packages_path()
+            sublime_package = package_name + ".sublime-package"
 
-            if os.path.exists(os.path.join(packages_path, sublime_package)):
-                ret_value = _search_zip_for_file(packages_path, sublime_package, resource, get_path, recursive_search, return_binary, encoding)
-                if ret_value != None:
-                    return ret_value
+            packages_path = sublime.installed_packages_path()
+            if content is None:
+                if os.path.exists(os.path.join(packages_path, sublime_package)):
+                    content = _get_zip_item_content(os.path.join(packages_path, sublime_package), resource, return_binary, encoding)
 
             packages_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
 
-            if os.path.exists(os.path.join(packages_path, sublime_package)):
-                ret_value = _search_zip_for_file(packages_path, sublime_package, resource, get_path, recursive_search, return_binary, encoding)
-                if ret_value != None:
-                    return ret_value
+            if content is None:
+                if os.path.exists(os.path.join(packages_path, sublime_package)):
+                    content = _get_zip_item_content(os.path.join(packages_path, sublime_package), resource, return_binary, encoding)
 
-    return None
+    return content
+
+
+def find_resource(resource_pattern, package=None):
+    file_set = set()
+    if package == None:
+        for package in get_packages_list():
+            file_set.update(find_resource(resource_pattern, package))
+
+        ret_list = list(file_set)
+    else:
+        file_set.update(_find_directory_resource(os.path.join(sublime.packages_path(), package), resource_pattern))
+
+        if VERSION >= 3006:
+            zip_location = os.path.join(sublime.installed_packages_path(), package + ".sublime-package")
+            file_set.update(_find_zip_resource(zip_location, resource_pattern))
+            zip_location = os.path.join(os.path.dirname(sublime.executable_path()), "Packages", package + ".sublime-package")
+            file_set.update(_find_zip_resource(zip_location, resource_pattern))
+        ret_list = map(lambda e: package + "/" + e, file_set)
+
+    return sorted(ret_list)
 
 
 def list_package_files(package, ignore_patterns=[]):
@@ -242,51 +220,65 @@ def _list_files_in_zip(package_path, package):
         ret_value = zip_file.namelist()
     return ret_value
 
-
-def _search_zip_for_file(packages_path, package, file_name, path, recursive_search, return_binary, encoding):
-    """
-    Search a zip for an resource.
-    """
-    if not os.path.exists(os.path.join(packages_path, package)):
+def _get_zip_item_content(path_to_zip, resource, return_binary, encoding):
+    if not os.path.exists(path_to_zip):
         return None
 
     ret_value = None
-    with zipfile.ZipFile(os.path.join(packages_path, package)) as zip_file:
+
+    with zipfile.ZipFile(path_to_zip) as zip_file:
         namelist = zip_file.namelist()
-        if recursive_search:
-            indices = [i for i, name in enumerate(namelist) if name.endswith(file_name)]
-            if len(indices) > 0:
-                file_name = namelist[indices[0]]
-        if file_name in namelist:
-            if path:
-                temp_dir = tempfile.mkdtemp()
-                file_location = zip_file.extract(file_name, temp_dir)
-                ret_value =  file_location
-            else:
-                ret_value = zip_file.read(file_name)
-                if not return_binary:
-                    ret_value = ret_value.decode(encoding)
+        if resource in namelist:
+            ret_value = zip_file.read(resource)
+            if not return_binary:
+                ret_value = ret_value.decode(encoding)
 
     return ret_value
 
-def _find_file(abs_dir, file_name):
-    """
-    Find the absolute path to a specified file. Note that the first entry
-    matching the file will be used, even if it exists elsewhere in the
-    directory structure.
-    """
-    ret_path = None
+def _get_directory_item_content(filename, return_binary, encoding):
+    content = None
+    if os.path.exists(filename):
+        if return_binary:
+            mode = "rb"
+            encoding = None
+        else:
+            mode = "r"
+        with codecs.open(filename, mode, encoding=encoding) as file_obj:
+            content = file_obj.read()
+    return content
 
-    split = os.path.split(file_name)
-    abs_dir = os.path.join(abs_dir, split[0])
-    file_name = split[1]
+def _find_zip_resource(path_to_zip, pattern):
+    ret_list = []
+    if os.path.exists(path_to_zip):
+        with zipfile.ZipFile(path_to_zip) as zip_file:
+            namelist = zip_file.namelist()
+            for name in namelist:
+                if re.search(pattern, name):
+                    ret_list.append(name)
 
-    for root, dirnames, filenames in os.walk(abs_dir):
-        if file_name in filenames:
-            ret_path = os.path.join(root, file_name)
-            break
+    return ret_list
 
-    return ret_path
+def _find_directory_resource(path, pattern):
+    ret_list = []
+    if os.path.exists(path):
+        path = os.path.join(path, "")
+        for root, directories, filenames in os.walk(path):
+            temp = root.replace(path, "")
+            for filename in filenames:
+                if re.search(pattern, os.path.join(temp, filename)):
+                    ret_list.append(os.path.join(temp, filename))
+    return ret_list
+
+def extract_zip_resource(path_to_zip, resource, extract_dir=None):
+    if extract_dir is None:
+        extract_dir = tempfile.mkdtemp()
+
+    file_location = None
+    if os.path.exists(path_to_zip):
+        with zipfile.ZipFile(path_to_zip) as zip_file:
+            file_location = zip_file.extract(resource, extract_dir)
+
+    return file_location
 
 ##################################### TESTS ####################################
 import sys
@@ -300,22 +292,47 @@ class GetPackageAssetTests(unittest.TestCase):
     def test_get_packages_list(self):
         get_packages_list()
 
-    def test_get_package_resource(self):
-        tc = get_package_resource
+
+    def test_get_resource(self):
+        tc = get_resource
         aseq = self.assertEquals
 
-        # Search sublime-package. No assertion since
+        res = tc("Default", "not_here.txt")
+        aseq(res, None)
+
         package, resource = get_package_and_resource_name(os.path.abspath(__file__))
-        res = get_package_resource(package, resource, return_binary=True)
+        res = tc(package, resource)
+        with codecs.open(__file__, "r") as file_obj:
+            content = file_obj.read()
+        aseq(res, content)
+
+    def test_get_binary_resource(self):
+        tc = get_binary_resource
+        aseq = self.assertEquals
+
+        res = tc("Default", "not_here.txt")
+        aseq(res, None)
+
+        package, resource = get_package_and_resource_name(os.path.abspath(__file__))
+        res = tc(package, resource)
         with codecs.open(__file__, "rb") as file_obj:
             content = file_obj.read()
         aseq(res, content)
 
-        #
-        res = get_package_resource("Default", "not_here.txt")
-        aseq(res, None)
+    def test_find_resource(self):
+        tc = find_resource
+        aseq = self.assertEquals
 
+        tc("\\.sublime-keymap$")
+        res = tc("\\.sublime-keymap$", "Default")
+        aseq(res, ["Default/Default (Linux).sublime-keymap", "Default/Default (OSX).sublime-keymap", "Default/Default (Windows).sublime-keymap"])
 
+        res = tc(".not_real$", "Default")
+        aseq(res, [])
+        res = tc(".not_real$")
+        aseq(res, [])
+        res = tc(".", "Fake Package")
+        aseq(res, [])
 
     def test_get_package_and_resource_name(self):
         tc = get_package_and_resource_name
