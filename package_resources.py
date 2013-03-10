@@ -33,9 +33,9 @@ def _get_resource(package_name, resource, return_binary=False, encoding="utf-8")
     if VERSION > 3013:
         try:
             if return_binary:
-                content = sublime.load_binary_resource("Package/" + package_name + "/" + resource)
+                content = sublime.load_binary_resource("Packages/" + package_name + "/" + resource)
             else:
-                content = sublime.load_resource("Package/" + package_name + "/" + resource)
+                content = sublime.load_resource("Packages/" + package_name + "/" + resource)
         except IOError:
             pass
     else:
