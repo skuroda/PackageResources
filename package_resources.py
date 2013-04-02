@@ -168,7 +168,7 @@ def get_package_and_resource_name(path):
 
     return (package, resource)
 
-def get_packages_list(ignore_packages=True):
+def get_packages_list(ignore_packages=True, ignore_patterns=[]):
     """
     Return a list of packages.
     """
@@ -181,11 +181,21 @@ def get_packages_list(ignore_packages=True):
         executable_package_path = os.path.dirname(sublime.executable_path()) + os.sep + "Packages"
         package_set.update(_get_packages_from_directory(executable_package_path, ".sublime-package"))
 
+
     if ignore_packages:
-        ignored_package_list = sublime.load_settings(
+        ignored_list = sublime.load_settings(
             "Preferences.sublime-settings").get("ignored_packages", [])
-        for ignored in ignored_package_list:
-            package_set.discard(ignored)
+    else:
+        ignored_list = []
+
+    for package in package_set:
+        for pattern in ignore_patterns:
+            if re.match(pattern, package):
+                ignored_list.append(package)
+                break
+
+    for ignored in ignored_list:
+        package_set.discard(ignored)
 
     return sorted(list(package_set))
 
