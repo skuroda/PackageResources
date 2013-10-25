@@ -169,12 +169,13 @@ def get_package_and_resource_name(path):
 
     return (package, resource)
 
-def get_packages_list(ignore_packages=True, ignore_patterns=[]):
+def get_packages_list(ignore_packages=True, ignore_patterns=[], sublime_package_only=False):
     """
     Return a list of packages.
     """
     package_set = set()
-    package_set.update(_get_packages_from_directory(sublime.packages_path()))
+    if not sublime_package_only:
+        package_set.update(_get_packages_from_directory(sublime.packages_path()))
 
     if int(sublime.version()) >= 3006:
         package_set.update(_get_packages_from_directory(sublime.installed_packages_path(), ".sublime-package"))
