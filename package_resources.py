@@ -16,7 +16,8 @@ __all__ = [
     "list_package_files",
     "get_package_and_resource_name",
     "get_packages_list",
-    "extract_package"
+    "extract_package",
+    "get_sublime_packages"
 ]
 
 
@@ -169,13 +170,12 @@ def get_package_and_resource_name(path):
 
     return (package, resource)
 
-def get_packages_list(ignore_packages=True, ignore_patterns=[], sublime_package_only=False):
+def get_packages_list(ignore_packages=True, ignore_patterns=[]):
     """
     Return a list of packages.
     """
     package_set = set()
-    if not sublime_package_only:
-        package_set.update(_get_packages_from_directory(sublime.packages_path()))
+    package_set.update(_get_packages_from_directory(sublime.packages_path()))
 
     if int(sublime.version()) >= 3006:
         package_set.update(_get_packages_from_directory(sublime.installed_packages_path(), ".sublime-package"))
@@ -200,6 +200,11 @@ def get_packages_list(ignore_packages=True, ignore_patterns=[], sublime_package_
         package_set.discard(ignored)
 
     return sorted(list(package_set))
+
+def get_sublime_packages(ignore_packages=True, ignore_patterns=[]):
+    package_list = get_packages_list(ignore_packages, ignore_patterns)
+    extracted_list = _get_packages_from_directory(sublime.packages_path())
+    return [x for x in package_list if x not in extracted_list]      
 
 def _get_packages_from_directory(directory, file_ext=""):
     package_list = []
