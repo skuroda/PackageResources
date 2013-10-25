@@ -15,7 +15,8 @@ __all__ = [
     "find_resource",
     "list_package_files",
     "get_package_and_resource_name",
-    "get_packages_list"
+    "get_packages_list",
+    "extract_package"
 ]
 
 
