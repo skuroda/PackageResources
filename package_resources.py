@@ -290,6 +290,18 @@ def extract_zip_resource(path_to_zip, resource, extract_dir=None):
 
     return file_location
 
+def extract_package(package):
+    if VERSION >= 3006:
+        package_location = os.path.join(sublime.installed_packages_path(), package + ".sublime-package")
+        if not os.path.exists(package_location):
+            package_location = os.path.join(os.path.dirname(sublime.executable_path()), "Packages", package + ".sublime-package")
+            if not os.path.exists(package_location):
+                package_location = None
+        if package_location:
+            with zipfile.ZipFile(package_location) as zip_file:
+                extract_location = os.path.join(sublime.packages_path(), package)
+                zip_file.extractall(extract_location)
+
 ##################################### TESTS ####################################
 import sys
 import unittest
