@@ -1,6 +1,6 @@
 """
 MIT License
-Copyright (c) 2013 Scott Kuroda <scott.kuroda@gmail.com>
+Copyright (c) 2014 Scott Kuroda <scott.kuroda@gmail.com>
 """
 import sublime
 import os
@@ -8,11 +8,13 @@ import zipfile
 import tempfile
 import re
 import codecs
+import fnmatch
 
 __all__ = [
     "get_resource",
     "get_binary_resource",
-    "find_resource",
+    "find_resources",
+    "find_resources_by_regex",
     "list_package_files",
     "get_package_and_resource_name",
     "get_packages_list",
@@ -62,16 +64,19 @@ def _get_resource(package_name, resource, return_binary=False, encoding="utf-8")
 
     return content
 
+def find_resources(pattern, package=None):
+    translate_pattern = fnmatch.translate(pattern)
+    return find_resources_by_regex(translate_pattern, package)
 
-def find_resource(resource_pattern, package=None):
+def find_resources_by_regex(resource_pattern, package=None):
     file_set = set()
     if package == None:
         for package in get_packages_list():
-            file_set.update(find_resource(resource_pattern, package))
+            file_set.update(find_resources_by_regex(resource_pattern, package))
 
         ret_list = list(file_set)
     else:
-        file_set.update(_find_directory_resource(os.path.join(sublime.packages_path(), package), resource_pattern))
+        file_set.update(_find_directory_resource_by_regex(os.path.join(sublime.packages_path(), package), resource_pattern))
 
         if VERSION >= 3006:
             zip_location = os.path.join(sublime.installed_packages_path(), package + ".sublime-package")
@@ -174,8 +179,17 @@ def get_packages_list(ignore_packages=True, ignore_patterns=[]):
     """
     Return a list of packages.
     """
+    package_set = set(get_installed_packages(ignore_packages, ignore_patterns))
+    package_set.update(get_package_directory_packages(ignore_packages, ignore_patterns))
+
+    return sorted(list(_remove_ignored_packages(ignore_packages, ignore_patterns, package_set)))
+
+def get_package_directory_packages(ignore_packages=True, ignore_patterns=[]):
+    package_set = set(_get_packages_from_directory(sublime.packages_path()))
+    return sorted(list(_remove_ignored_packages(ignore_packages, ignore_patterns, package_set)))
+
+def get_installed_packages(ignore_packages=True, ignore_patterns=[]):
     package_set = set()
-    package_set.update(_get_packages_from_directory(sublime.packages_path()))
 
     if int(sublime.version()) >= 3006:
         package_set.update(_get_packages_from_directory(sublime.installed_packages_path(), ".sublime-package"))
@@ -184,6 +198,9 @@ def get_packages_list(ignore_packages=True, ignore_patterns=[]):
         package_set.update(_get_packages_from_directory(executable_package_path, ".sublime-package"))
 
 
+    return sorted(list(_remove_ignored_packages(ignore_packages, ignore_patterns, package_set)))
+
+def _remove_ignored_packages(ignore_packages, ignore_patterns, package_set):
     if ignore_packages:
         ignored_list = sublime.load_settings(
             "Preferences.sublime-settings").get("ignored_packages", [])
@@ -199,12 +216,12 @@ def get_packages_list(ignore_packages=True, ignore_patterns=[]):
     for ignored in ignored_list:
         package_set.discard(ignored)
 
-    return sorted(list(package_set))
+    return package_set
 
 def get_sublime_packages(ignore_packages=True, ignore_patterns=[]):
     package_list = get_packages_list(ignore_packages, ignore_patterns)
     extracted_list = _get_packages_from_directory(sublime.packages_path())
-    return [x for x in package_list if x not in extracted_list]      
+    return [x for x in package_list if x not in extracted_list]
 
 def _get_packages_from_directory(directory, file_ext=""):
     package_list = []
@@ -275,7 +292,7 @@ def _find_zip_resource(path_to_zip, pattern):
 
     return ret_list
 
-def _find_directory_resource(path, pattern):
+def _find_directory_resource_by_regex(path, pattern):
     ret_list = []
     if os.path.exists(path):
         path = os.path.join(path, "")
@@ -348,12 +365,27 @@ class GetPackageAssetTests(unittest.TestCase):
             content = file_obj.read()
         aseq(res, content)
 
-    def test_find_resource(self):
-        tc = find_resource
+    def test_find_resource_by_regex(self):
+        tc = find_resources_by_regex
         aseq = self.assertEquals
 
         tc("\\.sublime-keymap$")
         res = tc("\\.sublime-keymap$", "Default")
+        aseq(res, ["Default/Default (Linux).sublime-keymap", "Default/Default (OSX).sublime-keymap", "Default/Default (Windows).sublime-keymap"])
+
+        res = tc(".not_real$", "Default")
+        aseq(res, [])
+        res = tc(".not_real$")
+        aseq(res, [])
+        res = tc(".", "Fake Package")
+        aseq(res, [])
+
+    def test_find_resource(self):
+        tc = find_resources
+        aseq = self.assertEquals
+
+        tc("*.sublime-keymap")
+        res = tc("*.sublime-keymap", "Default")
         aseq(res, ["Default/Default (Linux).sublime-keymap", "Default/Default (OSX).sublime-keymap", "Default/Default (Windows).sublime-keymap"])
 
         res = tc(".not_real$", "Default")
