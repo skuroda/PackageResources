@@ -62,7 +62,8 @@ def _get_resource(package_name, resource, return_binary=False, encoding="utf-8")
                 if os.path.exists(os.path.join(packages_path, sublime_package)):
                     content = _get_zip_item_content(os.path.join(packages_path, sublime_package), resource, return_binary, encoding)
 
-    return content
+    return content.replace('\r\n','\n').replace('\r','\n')
+
 
 def find_resources(pattern, package=None):
     translate_pattern = fnmatch.translate(pattern)
